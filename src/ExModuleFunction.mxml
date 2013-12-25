@@ -1,0 +1,2176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ACTSONE COMPANY
+//  Copyright 2013 Actsone 
+//  All Rights Reserved.
+//
+//	This program is free software: you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation, either version 3 of the License, or
+//	(at your option) any later version.
+//
+//	This program is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//
+//	You should have received a copy of the GNU General Public License
+//	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+////////////////////////////////////////////////////////////////////////////////
+-->
+<s:Module xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="20" height="20" implements="actsone.external.IExternalFunction">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import com.brokenfunction.json.encodeJson;
+			
+			import kr.co.actsone.common.ColumnType;
+			import kr.co.actsone.common.Global;
+			import kr.co.actsone.common.MergeCellInfo;
+			import kr.co.actsone.common.RowStatus;
+			import kr.co.actsone.controls.ExAdvancedDataGrid;
+			import kr.co.actsone.controls.advancedDataGridClasses.ExAdvancedDataGridColumn;
+			import kr.co.actsone.controls.advancedDataGridClasses.ExAdvancedDataGridColumnGroup;
+			import kr.co.actsone.custom.PrintADG;
+			import kr.co.actsone.filters.FilterDataWithRowHide;
+			import kr.co.actsone.utils.ErrorMessages;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.HierarchicalCollectionView;
+			import mx.collections.HierarchicalData;
+			import mx.collections.XMLListCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.formatters.DateFormatter;
+			import mx.printing.FlexPrintJob;
+			import mx.printing.FlexPrintJobScaleType;
+			import mx.utils.ObjectUtil;
+			import mx.utils.UIDUtil;
+			
+			import spark.components.Label;
+			
+			private var _gridoneInstance:Object;
+			public var _datagrid:ExAdvancedDataGrid;
+			public var rowStatus:RowStatus  =new RowStatus(); 
+			
+			/**
+			 * define column separator in case using text data.
+			 */
+			public static var columnSeparator:String="|";
+			
+			/**
+			 * define row separator in case using text data.
+			 */
+			public static var rowSeparator:String="%%";
+ 
+			public var err:ErrorMessages;
+ 
+			public function get gridoneInstance():Object
+			{
+				return _gridoneInstance;
+			}
+			
+			public function gridoneIn(value:Object):void
+			{
+				_gridoneInstance = value;
+			}
+			
+			public function get datagrid():ExAdvancedDataGrid
+			{
+				return  _datagrid;
+			}
+			
+			
+			public function setDataGrid(obj:Object):void
+			{
+				_datagrid=obj as ExAdvancedDataGrid;
+			}
+ 
+			public function getModuleName():String
+			{
+				var str:String="ModuleExFunctions"  + gridoneInstance.toString();
+				return str;
+			}
+			
+			public function setModuleName(str:String):void
+			{
+				Alert.show(str);
+			}
+			
+			/*************************************************************
+			 * Get column header index
+			 * @param columnKey:String	 
+			 * ***********************************************************/
+			public function getColHDIndex(columnKey:String):int
+			{
+				try
+				{
+					var result:int = -1;
+					var col:ExAdvancedDataGridColumn= gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = this.datagrid.defaultDataFieldIndex[columnKey];
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColHDIndex");					
+				}
+				return result;
+			}
+			
+			/*************************************************************
+			 * get column header visible index
+			 * ***********************************************************/
+			public function getColHDVisibleIndex(strColumnKey:String):int
+			{
+				try
+				{
+					var result:int = -1;
+					var col:ExAdvancedDataGridColumn = gridoneInstance.getColumnByDataField(strColumnKey) as ExAdvancedDataGridColumn;
+					if(col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = this.getColumnIndex(strColumnKey);				
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColHDVisibleIndex");
+				}
+				return result;
+				
+			}
+			
+			/*************************************************************
+			 * get column index
+			 * ***********************************************************/
+			public function getColumnIndex(dataField:String):int
+			{
+				if (this.datagrid.dataFieldIndex.hasOwnProperty(dataField))
+					return this.datagrid.dataFieldIndex[dataField];
+				return -1;
+			}
+			
+			/*************************************************************
+			 * get column header text
+			 * @param strColumnKey string of data filed 
+			 * ***********************************************************/
+			public function getColHDText(strColumnKey:String):String
+			{
+				try
+				{
+					var result:String = "";
+					var col:ExAdvancedDataGridColumn = gridoneInstance.getColumnByDataField(strColumnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = col.headerText;
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColHDText");
+				}
+				return result;
+			}
+			 
+			
+			/*************************************************************
+			 * Get the column width
+			 * @param columnKey dataField of column
+			 * @author Thuan 
+			 * @modified by Duong Pham
+			 * ***********************************************************/			
+			public function getColWidth(columnKey:String):Number
+			{
+				var colWidth:Number;
+				try
+				{
+					var col:ExAdvancedDataGridColumn = gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if(col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					colWidth = Math.ceil(col.width as Number);
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getColWidth");
+				}
+				return colWidth;
+			}
+			
+			
+			/*************************************************************
+			 * getColCount: The number of columns to be displayed in a TileList control 
+			 * 				or items in a HorizontalList control. For the data grids, 
+			 * 				specifies the number of visible columns. 
+			 * @author Thuan
+			 * ***********************************************************/		
+			public function getColCount():int
+			{
+				var colCount:int = 0;
+				try
+				{
+					if(this.datagrid.columns && this.datagrid.columns.length > 0)
+						colCount = this.datagrid.columnCount;
+					else
+						colCount = 0;
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getColCount");
+				}
+				return colCount;
+			}
+			
+			/*************************************************************
+			 * get row count
+			 * @param isFilter boolean
+			 * @return number of row count in datagrid
+			 * ***********************************************************/
+			public function getRowCount(isFilter:Boolean=false):Number
+			{
+				var rowCountNum:Number;	
+				if(!isFilter)
+				{
+					if (this.datagrid._bkDP == null)
+						rowCountNum=0;
+					else
+						rowCountNum=this.datagrid._bkDP.length;	
+				}
+				else
+				{
+					if(datagrid.dataProvider == null)
+						rowCountNum = 0;
+					else
+						rowCountNum = datagrid.getLength();
+				}
+				return rowCountNum;
+			}
+			
+			
+			/*************************************************************
+			 * get active for row index
+			 * ***********************************************************/
+			public function getActiveRowIndex():int
+			{	
+				var rowIndex:int = -1;
+				if(!this.datagrid.selectCell)
+				{
+					rowIndex = this.datagrid.getBackupItemIndex(this.datagrid.selectedItem);
+				}			
+				return rowIndex;
+			}
+			
+			/*************************************************************
+			 * Get group header text
+			 * ***********************************************************/		
+			public function getGroupHDText(strGroupKey:String):String
+			{
+				try
+				{
+					var result:String = "";
+					var groupCol:ExAdvancedDataGridColumnGroup  = this.gridoneInstance.getColumnByDataField(strGroupKey,true) as ExAdvancedDataGridColumnGroup;
+					if (groupCol == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = groupCol.headerText;				
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getGroupHDText");
+				}
+				return result;
+			}
+			
+			
+			/*****************************************************************
+			 * getColCellActivation
+			 * */
+			public function getColCellActivation(strColumnKey:String):String
+			{
+				try
+				{
+					var result:String = "";
+					var col:ExAdvancedDataGridColumn=gridoneInstance.getColumnByDataField(strColumnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = col.cellActivation;
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getColCellActivation");
+				}
+				return result;
+			}
+			
+			/*************************************************************
+			 * get json data
+			 * columnKey must checkbox column only
+			 * ***********************************************************/		
+			public function getGridData(columnKey:String=null):String
+			{
+				try
+				{
+					var rowObj:Object;
+					if (this.datagrid.dataProvider == null)
+						return '[]';
+					var arrayData:Array=new Array();
+					var item:Object;
+					var column:ExAdvancedDataGridColumn;
+					if (columnKey == null)
+					{
+						for each (item in this.datagrid.dataProvider)
+						{
+							rowObj=new Object();
+							for each (column in this.datagrid.columns)
+							{
+								if(datagrid.bUpdateNullToZero && column.type == ColumnType.NUMBER && 
+									(item[column.dataField] == undefined || item[column.dataField] == null || item[column.dataField] == ""))
+									rowObj[column.dataField]=item[column.dataField]="0";
+								rowObj[column.dataField]=item[column.dataField];
+							}
+							arrayData.push(rowObj);
+						}
+					}
+					else
+					{
+						var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+						if (col == null)
+							err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+						if (col.type != ColumnType.CHECKBOX)
+							err.throwError(ErrorMessages.ERROR_CHECKBOX_COLUMN_TYPE, Global.DEFAULT_LANG);
+						for each (item in this.datagrid.dataProvider)
+						{
+							if (item[columnKey] == "1")
+							{
+								rowObj=new Object();
+								for each (column in this.datagrid.columns)
+								{
+									if(datagrid.bUpdateNullToZero && column.type == ColumnType.NUMBER && 
+										(item[column.dataField] == undefined || item[column.dataField] == null || item[column.dataField] == ""))
+										rowObj[column.dataField]=item[column.dataField]="0";
+									rowObj[column.dataField]=item[column.dataField];
+								}
+								arrayData.push(rowObj);
+							}
+						}
+					}
+					var newResult:String = "";
+					if(arrayData.length > 0)
+					{
+						var result:String = encodeJson(arrayData);
+						newResult = result.replace(/\\/g, "\\\\");
+					}
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getGridData");				
+				}			
+				return newResult;
+			}
+			
+			/*************************************************************
+			 * get Cell Value Index
+			 * ***********************************************************/
+			public function getCellValueIndex(nColumnIndex:int, nRow:int):String
+			{
+				var strResult:String="";
+				if (nColumnIndex < 0 || nColumnIndex >= this.datagrid.columns.length)
+					err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+				
+				if (nRow < 0 || nRow >= this.datagrid.dataProvider.length)
+					err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+				
+				var fieldName:String=(this.datagrid.columns[nColumnIndex] as ExAdvancedDataGridColumn).dataField;
+				strResult=this.getCellHelper(nRow, fieldName ,"getCellValueIndex");					
+				return strResult;
+			}
+			
+			
+			/*************************************************************
+			 * get a cell value.
+			 * @param rowIndex index of getting row.
+			 * @param fieldName field name of getting column.
+			 * @return string of cell which we want to get.
+			 * ***********************************************************/
+			public function getCellHelper(rowIndex:int, fieldName:String , funcName:String):String
+			{
+				try
+				{
+					var strResult:String="";
+					if (datagrid.dataProvider == null)
+					{
+						err.throwError(ErrorMessages.ERROR_DATAPROVIDER_NULL, Global.DEFAULT_LANG);
+					}				
+					if (rowIndex < 0 || rowIndex >= datagrid._bkDP.length)
+					{
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					}				
+					if (this.datagrid.dataFieldIndex[fieldName] == null)
+					{
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					}				
+					if (datagrid.dataProvider is XMLListCollection  || datagrid.dataProvider is ArrayCollection )				
+					{
+						var dataObj:Object=this.datagrid.getBackupItem(rowIndex);
+						if(dataObj == null)
+							strResult = "";
+						else if (dataObj[fieldName] == null || dataObj[fieldName] == "")
+						{
+							var col:ExAdvancedDataGridColumn = ExAdvancedDataGridColumn(this.gridoneInstance.getColumnByDataField(fieldName));
+							if(col.type == ColumnType.NUMBER && datagrid.bUpdateNullToZero)
+								dataObj[fieldName] = strResult = "0";
+							else
+								strResult="";
+						}
+						else
+						{
+							strResult=dataObj[fieldName].toString();
+						}
+					}
+					
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,funcName);			
+				}
+				return strResult;
+			}
+			
+			
+			public function getMultiCellValue(listColumKey:String, nRow:int):Array
+			{
+				var arrColumnKey:Array=listColumKey.split(",");
+				var arrResult:Array=new Array();
+				for each (var columnKey:String in arrColumnKey)
+				{
+					if (columnKey != null)
+					{
+						var strTemp:String=this.getCellHelper(nRow, columnKey ,"getCellValue");
+						arrResult.push(strTemp);
+					}
+				}			
+				return arrResult;
+			}
+			
+			
+			public function getCellValue(listColumKey:String, nRow:int):Object
+			{			
+				if (nRow < 0)
+					nRow=0;
+				if (nRow >= datagrid._bkDP.length)
+					nRow=datagrid._bkDP.length - 1;
+				
+				var obj:Object=null;
+				if (listColumKey.search(",") < 0)
+					obj=this.getCellHelper(nRow, listColumKey,"getCellValue");
+				else
+					obj=this.getMultiCellValue(listColumKey, nRow);					
+				return obj;
+			}
+
+			
+			/*************************************************************
+			 * set cell hidden value index	 
+			 * ***********************************************************/
+			public function getCellHiddenValueIndex(nColumnIndex:int, nRow:int):String
+			{
+				if (!datagrid.isTree)
+				{
+					var strResult:String="";
+					if (nColumnIndex < 0 || nColumnIndex >= this.datagrid.columns.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					if (nRow < 0 || nRow >= this.datagrid._bkDP.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					var colField:String=(this.datagrid.columns[nColumnIndex] as ExAdvancedDataGridColumn).dataField;
+					strResult=getCellHiddenValueHelper(colField, nRow , "getCellHiddenValueIndex");
+				}						
+				return strResult;
+			}
+			
+			public function getCellHiddenValueHelper(strColumnKey:String, nRow:int, funcName:String):String
+			{
+				try
+				{
+					var strResult:String="";
+					if (!this.datagrid.dataFieldIndex.hasOwnProperty(strColumnKey))
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					
+					if (nRow < 0 || nRow >= this.datagrid._bkDP.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					var obj:Object=this.datagrid.getBackupItem(nRow);
+					strResult=obj[strColumnKey + "_hidden"];
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,funcName);					
+				}
+				return strResult;
+			}
+			
+			public function getCellImage(strColKey:String, nRow:int):String
+			{
+				try
+				{
+					var strResult:String="";
+					if (!this.datagrid.dataFieldIndex.hasOwnProperty(strColKey))
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					
+					if (nRow < 0 || nRow >= this.datagrid._bkDP.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					strResult=this.datagrid.getBackupItem(nRow)[strColKey + "_index"];
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getCellImage");					
+				}
+				return strResult;
+			}
+			
+			public function getComboListKey(columnKey:String, listIndex:int):String
+			{
+				try
+				{
+					var result:String = 'default';
+					var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					var objectInfo:Object=ObjectUtil.getClassInfo(col.listCombo);
+					if (objectInfo.properties[listIndex] != null)
+					{
+						var qname:QName=objectInfo.properties[listIndex];
+						result = qname.localName;
+					}					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboListKey");	
+				}
+				return result;
+			}
+			
+			public function getComboSelectedListKey(columnKey:String, rowIndex:int):String
+			{
+				try
+				{
+					var result:String = 'default';
+					var bStop:Boolean = false;
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (rowIndex >= this.datagrid._bkDP.length || rowIndex < 0)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					var value:String=this.datagrid.getBackupItem(rowIndex)[col.dataField];
+					var objectInfo:Object=ObjectUtil.getClassInfo(col.listCombo);
+					var i:int=0;
+					for each (var arr:Array in col.listCombo)
+					{
+						for each (var item:Object in arr)
+						{
+							if (item["value"] == value)
+							{
+								var qName:QName=objectInfo.properties[i];
+								result = qName.localName;
+								bStop = true;
+								break;
+							}
+						}
+						i++;
+						if(bStop)
+							break;
+					}					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboSelectedListKey");	
+				}
+				return result;
+			}
+			
+			public function getComboSelectedIndex(columnKey:String, rowIndex:int):int
+			{
+				try
+				{
+					var result:int = -1;
+					var bStop:Boolean = false;
+					var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (rowIndex >= this.datagrid._bkDP.length || rowIndex < 0)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					var value:String=this.datagrid.getBackupItem(rowIndex)[col.dataField];
+					for each (var arr:Array in col.listCombo)
+					{
+						for (var i:int=0; i < arr.length; i++)
+						{
+							if (arr[i]["value"] == value)
+							{
+								result = i;
+								bStop = true;
+								break;
+							}
+						}
+						if(bStop)
+							break;
+					}
+					/* for (var j:int=0; j < col.comboData.length; j++)
+					{
+					if (col.comboData[j]["value"] == value)
+					result = j;
+					} */					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboSelectedIndex");	
+				}
+				return result;
+			}
+			
+			
+			public function getActiveColKey():String
+			{
+				var colIndex:int = -1;
+				if(!this.datagrid.selectCell)
+				{
+					if(this.datagrid.selectedItem)
+						colIndex = this.datagrid.selectedItem["columnIndex"];
+				}
+				else
+				{
+					if(this.datagrid.selectedCells.length > 0)
+						colIndex = this.datagrid.selectedCells[0]["columnIndex"];
+				}
+				if (colIndex == -1)
+					return "";
+				return getColHDKey(colIndex);
+			}
+			
+			/*************************************************************
+			 * get column header key
+			 * ***********************************************************/
+			public function getColHDKey(nColunmIndex:int):String
+			{
+				try
+				{
+					var result:String = "";
+					if(nColunmIndex < 0  || nColunmIndex >= this.datagrid.columns.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					for (var dataField:String in this.datagrid.defaultDataFieldIndex)
+					{
+						if (this.datagrid.defaultDataFieldIndex[dataField] == nColunmIndex)
+						{
+							result = dataField;
+							break;
+						}
+					}					
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColHDKey");
+				}
+				return result;
+			}
+			
+			public function removeImageList(columnKey:String, imageIndex:int):void
+			{
+				try
+				{
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if(imageIndex < 0 || col.imageList != null && imageIndex >= col.imageList.length )
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					if (col.imageList != null && col.imageList[imageIndex] != null)
+					{
+						col.imageList[imageIndex]="";
+						//col.imageList.splice(imageIndex,1);
+					}
+					this.datagrid.invalidateList();
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"removeImageList");
+				}
+			}
+			
+			
+			public function getImageListURL(columnKey:String, imageIndex:int):String
+			{
+				try
+				{
+					var result:String = "";
+					var col:ExAdvancedDataGridColumn=gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if(imageIndex < 0 || col.imageList != null && imageIndex >= col.imageList.length )
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);				
+					if (col.imageList != null)
+					{
+						result = col.imageList[imageIndex];
+					}
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getImageListURL");
+				}
+				return result;
+			}
+			
+			public function getImageListCount(columnKey:String):int
+			{
+				try
+				{
+					var result:int = 0;
+					var col:ExAdvancedDataGridColumn=gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (col.imageList != null)
+					{
+						result = col.imageList.length;
+					}					
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getImageListCount");
+				}
+				return result;
+			}
+			
+			/*************************************************************
+			 * Get max length of column		 
+			 * ***********************************************************/
+			public function getColMaxLength(columnKey:String):String
+			{
+				try
+				{
+					var nResult:String="-1";
+					var col:ExAdvancedDataGridColumn=gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (col.orginalMaxLength.search("-") < 0 || col.orginalMaxLength.search(".") < 0)
+						nResult=col.orginalMaxLength;
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColMaxLength");					
+				}
+				return nResult;
+			}
+			
+			
+			/*************************************************************
+			 * get data inside datagrid from provider is XMLCollectionView
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getXMLData():String
+			{
+				var xmlData:String;
+				if(datagrid.bUpdateNullToZero)
+				{
+					var col:ExAdvancedDataGridColumn;
+					for (var dataField:String in this.datagrid.dataFieldIndex)
+					{
+						col = ExAdvancedDataGridColumn(gridoneInstance.getColumnByDataField(dataField));
+						if(col.type == ColumnType.NUMBER)
+						{
+							for each (var item:XML in this.datagrid.dataProvider)
+							{
+								if(item[col.dataField][0] == null || item[col.dataField][0] == "")
+									item[col.dataField][0] = "0"
+							}
+						}
+					}
+				}
+				xmlData = this.datagrid.dataProvider.toString();
+				return xmlData;
+			}
+			
+			
+			/*************************************************************
+			 * get checked row idex  
+			 * @author Chheav Hun
+			 * ***********************************************************/
+			public function getCheckedRowsIndex(columnKey:String):Array
+			{
+				try
+				{
+					var arr:Array=new Array();
+					
+					if (datagrid.dataFieldIndex[columnKey]==null)
+					{
+						err.throwError(ErrorMessages.ERROR_INVALID_INPUT_DATA, Global.DEFAULT_LANG);
+					}	
+					else 
+					{
+						for each (var item:Object in datagrid.dataProvider)
+						{
+							if (item[columnKey]==true || item[columnKey]=='1'){
+								arr.push(datagrid.getBackupItemIndex(item));
+							} 
+						}
+					}
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return arr;	
+			}
+			
+			
+			/*************************************************************
+			 * getColumnType
+			 * ***********************************************************/				
+			public function getColumnType(columnKey:String):String
+			{
+				var result:String = '';
+				try
+				{
+					var col:ExAdvancedDataGridColumn= gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					result = col.type;
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getColumnType");
+				}
+				return result.toLowerCase();
+			}
+			
+			
+			/*************************************************************
+			 * get data from one cell as string by setting specific rowIndex and columnKey
+			 * @param  rowIndex Row index   
+			 * @param  fieldName columnKey	 
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getCell(rowIndex:int, fieldName:String,bname:Boolean=false):String
+			{
+				var resultData:String;
+				try{
+					if (this.datagrid.dataProvider==null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_DATAPROVIDER_NULL, Global.DEFAULT_LANG);
+					}
+					if (rowIndex < 0 || rowIndex >= this.datagrid._bkDP.length)
+					{
+						this.err.throwError(ErrorMessages.ERROR_ROWINDEX_INVALID, Global.DEFAULT_LANG);
+					}
+					if (this.datagrid.dataFieldIndex[fieldName]==null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					}
+					if (this.datagrid.dataProvider as XMLListCollection)
+					{
+						var rowXML:XML=XMLListCollection(this.datagrid.dataProvider).getItemAt(rowIndex) as XML;
+						if (rowXML.child(fieldName).length() > 0)
+						{
+							resultData=rowXML.child(fieldName)[0];
+						}
+						else
+						{
+							resultData="";
+						}
+					}
+					else
+					{
+						var rowObject:Object=this.datagrid.getBackupItem(rowIndex) as Object;
+						if (rowObject ==null || rowObject[fieldName]==null)
+						{
+							resultData="";
+						}
+						else
+						{
+							if (getColumnType(fieldName)==ColumnType.COMBOBOX && bname==false)
+							{
+								resultData=getComboText(fieldName, rowObject[fieldName]); 
+							}
+							else
+							{
+								if(rowObject.hasOwnProperty(fieldName))	
+									resultData=rowObject[fieldName].toString();
+								else
+									resultData='';
+							}
+							
+						}
+					}
+				}catch(e:Error){
+					throw new Error(e.message);
+				}
+				return resultData;	
+			}
+			
+			public function getComboText(columnKey:String, comboItemIndex:int, listKey:String=Global.DEFAULT_COMBO_KEY):String
+			{
+				try
+				{
+					var result:String = "";
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (listKey != null)
+					{
+						if (col.listCombo[listKey] != null)
+						{
+							var arr:Array=col.listCombo[listKey];
+							result = arr[comboItemIndex]["label"];
+						}
+					}					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboText");	
+				}
+				return result;
+			}
+			
+			
+			/*************************************************************
+			 * get name of a cell which using commbo box renderer.
+			 * @param colname column fied name.
+			 * @param rowIndex row index of the cell.
+			 * @return displaying name of the cell.
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getComboNameAtColumn(colname:String, rowIndex:int):String
+			{
+				try
+				{
+					if (this.datagrid.columns[this.datagrid.dataFieldIndex[colname]].type !=ColumnType.COMBOBOX)
+					{
+						err.throwError(ErrorMessages.ERROR_WRONG_COLUMN_TYPE, Global.DEFAULT_LANG);
+					}
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return getCell(rowIndex,colname,true); 
+			}
+			
+			/*************************************************************
+			 * get name of a cell which using commbo box renderer.
+			 * @param colIndex column index. if index is not for combobox column, this function still work with the input column index.
+			 * @param rowIndex row index of the cell.
+			 * @return displaying name of the cell.
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getComboNameAtColumnIndex(colIndex:int, rowIndex:int):String
+			{
+				var columnKey:String= getColHDKey(colIndex);
+				return getCell(rowIndex,columnKey,true);
+			}
+			
+			
+			
+			/*************************************************************
+			 * get data from more than one cell in one row as Array by setting specific rowIndex and columnKey list (ex: "name,nation")
+			 * @param  listColumKey the list of choosing columnKey as string (ex: "name,nation")  
+			 * @param  nRow  The row index 
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getCellValues(listColumKey:String, nRow:int):Array
+			{
+				var resultArr:Array=new Array();
+				var listColArr:Array=listColumKey.split(",");
+				try
+				{
+					for each (var colKey:String in listColArr)
+					{
+						if (colKey==null)
+						{
+							this.err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG); 
+						}
+						else 
+							resultArr.push(getCell(nRow,colKey));
+					}
+					
+				}catch(e:Error){
+					throw new Error(e.message);
+				}
+				return resultArr;	
+			}
+			
+			
+			/*************************************************************
+			 * get cell back ground color of specific row and col. 
+			 * @param  col Column index
+			 * @param  row  The row index 
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			private var _celDic:Dictionary=new Dictionary();
+			public function getCellBackgroundColor(col:int, row:int):String
+			{
+				try
+				{
+					if(this.datagrid._bkDP==null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_DATAPROVIDER_NULL, Global.DEFAULT_LANG);
+					}
+					if (row <0 ||row >= this.datagrid._bkDP.length)
+					{
+						this.err.throwError(ErrorMessages.ERROR_ROWINDEX_INVALID, Global.DEFAULT_LANG);
+					}
+					var uid:String = ""; 
+					var rowItem:Object = datagrid.getItemAt(row);
+					uid = rowItem[Global.ACTSONE_INTERNAL];
+					var dataField:String = "";
+					dataField=ExAdvancedDataGridColumn(this.datagrid.columns[col]).dataField;
+					var strBgCol:String = this.datagrid.getCellProperty("backgroundColor",uid,dataField);
+					if(strBgCol == null)
+						strBgCol = "";
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return strBgCol;			
+			}
+			
+			/*************************************************************
+			 * set show of hide column in specific column index; 
+			 * @param  colIndex  column index
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function showColumnIndex(colIndex:int):void
+			{
+				var col:ExAdvancedDataGridColumn=this.datagrid.columns[colIndex] as ExAdvancedDataGridColumn;
+				if (col !=null)
+				{
+					col.visible=true;
+					this.datagrid.invalidateList();
+				}
+			}
+			
+			
+			/*************************************************************
+			 * get value of property of specified column.
+			 * @param colField it can be a string object for DataField column or integer object for index column.
+			 * @param property name of property.
+			 * @return value of property as a object
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getColumnProperty(colField:Object, property:String):Object
+			{
+				var selectedCol:Object;
+				if (colField is int)
+				{
+					selectedCol=this.datagrid.columns[colField];
+				}
+				else if (colField is String)
+				{
+					selectedCol = this.gridoneInstance.getColumnByDataField(colField.toString());
+				}
+				if (selectedCol != null)
+				{
+					if (selectedCol.hasOwnProperty(property))
+						return selectedCol[property];
+					else
+						return selectedCol.getStyle(property);
+				}
+				return null;
+			}
+			
+			
+			/*************************************************************
+			 * get rows deleted by user.
+			 * @return array of deleted rows.
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getDeletedRows():Array
+			{
+				var arrDelRow:Array=new Array();
+				try
+				{
+					if(this.datagrid._bkDP==null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					}
+					for (var i:int=0; i < this.datagrid._bkDP.length; i++)
+					{
+						var item:Object=this.datagrid._bkDP[i]; 
+						if (rowStatus._arrRDelete !=null)
+							for (var j:int=0;j<=rowStatus._arrRDelete.length;j++)
+							{
+								if (rowStatus._arrRDelete[j]==i)
+									if (item is XML)
+										arrDelRow.push(XML(item).toXMLString());
+									else
+										arrDelRow.push(item);
+							}
+					}  
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return arrDelRow;
+			}
+			
+			
+			/*************************************************************
+			 * get inserted rows by user.
+			 * @return array of inserted rows.
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getInsertedRows():Array
+			{
+				var insertArr:Array=[];
+				try
+				{
+					if(this.datagrid.dataProvider==null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					}
+					for (var i:int=0; i < this.datagrid.dataProvider.length; i++)
+					{
+						var item:Object=this.datagrid.dataProvider[i]; 
+						if (rowStatus._arrRAdd !=null)
+							for (var j:int=0;j<=rowStatus._arrRAdd.length;j++)
+							{
+								if (rowStatus._arrRAdd[j]==i)
+									if (item is XML)
+										insertArr.push(XML(item).toXMLString());
+									else
+										insertArr.push(item);
+							}
+					}  
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return  insertArr;
+			}
+			
+			/*************************************************************
+			 * get rows at row index by user.
+			 * @return array of inserted rows.
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getRow(rowIndex:int):Object
+			{
+				var rowObj:Object=new Object();
+				rowObj=this.datagrid.getItemAt(rowIndex);
+				return rowObj;
+			}
+			
+			/*************************************************************
+			 * get update rows by user.
+			 * @return  array of rows
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getUpdatedRows():Array
+			{
+				var updateRArr:Array=new Array();
+				var row:Object;
+				var cellvalue:String="";
+				try
+				{
+					if (this.datagrid.dataProvider == null)
+					{
+						this.err.throwError(ErrorMessages.ERROR_DATAPROVIDER_NULL, Global.DEFAULT_LANG);
+					}
+					var colArr:Array=this.datagrid.columns;
+					for each(var col:ExAdvancedDataGridColumn in colArr)
+					{
+						if (col.type==ColumnType.CRUD)
+						{
+							for (var i:int=0; i < this.datagrid.dataProvider.length; i++)
+							{
+								row=this.datagrid.dataProvider[i];
+								if (this.datagrid.dataProvider[i][col.dataField] == Global.CRUD_UPDATE)
+								{
+									updateRArr.push(row);
+								}
+							}
+						}
+					}
+				}catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return updateRArr;	
+			}
+			
+			
+			
+			/*************************************************************
+			 * get multiple cell index
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getCellIndexArray(value:Object, fieldName:String, returnFieldName:String):Array
+			{
+				var arr:Array=new Array();
+				for (var i:int =0; i<this.datagrid._bkDP.length; i++)
+				{
+					var item:Object=this.datagrid.getItemAt(i);
+					if (item[fieldName]==value.toString())
+					{
+						arr.push(item[returnFieldName]);
+					}
+					
+				}
+				return  arr;	
+			}
+			
+			
+			/*************************************************************
+			 * get columns from datagrid (copy original code)
+			 * @author Chheav Hun
+			 * ***********************************************************/
+			public function getColumns():Array
+			{
+				var result:Array=new Array();
+				var obj:Object=new Object();
+				var dataField:String;
+				for each(var col:ExAdvancedDataGridColumn in datagrid.columns)
+				{
+					obj["dataField"]=col.dataField;
+					obj["headerText"]=col.headerText;
+					obj["width"]=col.width;
+					
+					result.push(obj);
+				}
+				return result;
+			}
+			
+			/*************************************************************
+			 * get activation for specified cell
+			 * @param strColumnKey
+			 * @param nRow
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getCellActivation(strColumnKey:String, nRow:int):String
+			{
+				try
+				{
+					var activation:String="";
+					var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(strColumnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if(col.merge)					
+						err.throwError(ErrorMessages.ERROR_ACTIVATION_COLKEY_INVALID, Global.DEFAULT_LANG);
+					var item:Object = this.datagrid.getBackupItem(nRow);
+					var uid:String = item[Global.ACTSONE_INTERNAL];
+					activation = this.datagrid.getCellProperty('activation',uid,strColumnKey);
+					if(activation == null || activation == "")
+						activation = col.cellActivation;
+				}
+				catch(error:Error)
+				{
+					throw new Error(error.message);
+				}
+				return activation;
+			}
+			
+			/*************************************************************
+			 * get text data
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getTextData(hasColumnDataField:Boolean=false):String
+			{
+				var returnVal:String='';
+				//get column data field
+				var cols:Array=this.datagrid.columns;
+				var colStr:String='';
+				
+				for (var i:int=0; i < cols.length; i++)
+				{
+					var col:ExAdvancedDataGridColumn=cols[i] as ExAdvancedDataGridColumn;
+					if (col.type != ColumnType.AUTONUMBER)
+					{
+						if (i != cols.length - 1)
+							colStr=colStr + col.dataField +  columnSeparator;
+						else
+							colStr=colStr + col.dataField +  rowSeparator;
+					}
+				}
+				
+				//get row data
+				var datas:Object=this.datagrid.dataProvider;
+				var dataStr:String='';
+				
+				for (var j:int=0; j < datas.length; j++)
+				{
+					var obj:Object=datas[j];
+					for (var jj:int=0; jj < cols.length; jj++)
+					{
+						var dcol:ExAdvancedDataGridColumn=cols[jj] as ExAdvancedDataGridColumn;
+						if (dcol.type != ColumnType.AUTONUMBER)
+						{
+							if (obj[dcol.dataField] == undefined)
+								obj[dcol.dataField]='';
+							if(datagrid.bUpdateNullToZero && dcol.type == ColumnType.NUMBER && 
+								(obj[dcol.dataField] == undefined || obj[dcol.dataField] == null || obj[dcol.dataField] == ""))
+							{
+								obj[dcol.dataField]='0';
+							}
+							//						if (dcol.type == ColumnType.CHECKBOX || dcol.type == ColumnType.RADIOBUTTON)
+							//							obj[dcol.dataField]='N';
+							
+							if (jj != cols.length - 1)
+								dataStr=dataStr + obj[dcol.dataField] + columnSeparator;
+							else
+								dataStr=dataStr + obj[dcol.dataField] + rowSeparator;
+						}
+						else
+						{
+							dataStr=dataStr + "" +  columnSeparator;
+						}
+					}
+				}
+				
+				if (hasColumnDataField)
+					returnVal=colStr + dataStr;
+				else
+					returnVal=dataStr;
+				
+				return returnVal;
+				
+			}
+			
+			
+			/*************************************************************
+			 * get all data from datagrid as Array
+			 * @author Chheav Hun
+			 * ***********************************************************/
+			public function  getArrayData(isBackup:Boolean = false):Array
+			{
+				var arr:Array;
+				var collection:Object;
+				if(isBackup)
+					collection = this.datagrid._bkDP;
+				else
+					collection = this.datagrid.dataProvider;
+				
+				if(collection == null)
+					return []; 
+				
+				if (this.datagrid.isTree)
+				{
+					arr = (((collection as  HierarchicalCollectionView).source as HierarchicalData).source as ArrayCollection).toArray();	
+				}
+				else
+				{
+					if (collection is XMLListCollection)
+					{
+						arr = (collection as XMLListCollection).toArray();
+					}
+					else if (collection is ArrayCollection)
+					{
+						arr = (collection as ArrayCollection).toArray();
+					}
+				}
+				var dataField:String = "";
+				var arrDataFieldCheckBox:Array = new Array();
+				for(var i:int =0 ; i<this.datagrid.columns.length; i++)
+				{
+					if(ExAdvancedDataGridColumn(this.datagrid.columns[i]).type == ColumnType.CHECKBOX)
+					{
+						arrDataFieldCheckBox.push(ExAdvancedDataGridColumn(this.datagrid.columns[i]).dataField);
+					}
+				}
+				if(arrDataFieldCheckBox.length > 0)
+				{
+					var item:Object;				
+					for(var j:int=0; j<arr.length; j++)
+					{
+						for(i=0; i<arrDataFieldCheckBox.length;i++)
+						{
+							dataField = arrDataFieldCheckBox[i];
+							item = arr[j];
+							if(item[dataField] == '1')
+								item[dataField] = datagrid.checkboxTrueValue; 
+							else if(item[dataField] == '0')
+								item[dataField] = datagrid.checkboxFalseValue; 
+						}
+					}
+				}
+				return  arr;
+			}
+			
+			/*************************************************************
+			 * get yes,no value for checkbox.  
+			 * @return columnKey dataField
+			 * @Author:Chheav Hun
+			 * ***********************************************************/
+			public function getCheckBoxValue(columnKey:String):Array
+			{
+				try
+				{
+					var arr:Array = new Array();
+					if (datagrid.dataFieldIndex[columnKey]==null)
+					{
+						err.throwError(ErrorMessages.ERROR_INVALID_INPUT_DATA, Global.DEFAULT_LANG);
+					}	
+					var val:String;
+					for each (var item:Object in datagrid.dataProvider)
+					{
+						if (item[columnKey]==true || item[columnKey]=='1')
+							val = datagrid.checkboxTrueValue;
+						else
+							val = datagrid.checkboxFalseValue;	
+						arr.push(val);
+					}
+				}
+				catch(e:Error)
+				{
+					throw new Error(e.message);
+				}
+				return arr;
+			}
+			
+			
+			
+			/*******************************************************6******
+			 * get group cell merge infor. it will get mergeOwnerRow index of all columns merge in DataGrid.
+			 * @param columnKey String
+			 * @author: Chheavhun
+			 * ***********************************************************/
+			public function  getCellGroupMergeInfo(columnKey:String,row:int):Array
+			{
+				
+				var selItem:Array=new Array();
+				var item:int;
+				var colIndex:int=this.datagrid.dataFieldIndex[columnKey];
+				var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+				if (col.merge)
+				{
+					var mergedCell:MergeCellInfo = this.datagrid.getMergeCell(row,colIndex);
+					if (!mergedCell)
+						selItem.push(row); 
+					else
+					{
+						var i:int=0;
+						for (i;i<mergedCell.mergeNum;i++)
+						{
+							selItem.push( mergedCell.mergeOwnerRow + i);
+						}
+					}
+				}
+				else
+				{
+					selItem.push(row);  
+				}
+				return selItem;
+			}
+			
+			/*************************************************************
+			 * print datagrid as pdf file. 
+			 * @author Chheav Hun
+			 * ***********************************************************/
+			public function printPDF(dgHDBgColor:uint=0xDCDCDC,dgHDHeight:Number=50,strheader:String="", bfooter:Boolean=false, fontSize:Number=24,strHeaderFColor:uint=0x000000,textAlign:String="center",strBgpageColor:uint=0xFFFFFF):void
+			{
+				var label:spark.components.Label;
+				if (strheader !="")
+				{
+					label=new  spark.components.Label();
+					label.text=strheader;
+					label.setStyle("fontSize",fontSize);
+					label.setStyle("color",strHeaderFColor);
+					label.setStyle("textAlign",textAlign);
+					label.y=10;
+					label.setStyle("padding-top",5);
+					label.setStyle("padding-bottom",5);
+					label.percentWidth=100;
+					label.height=50;
+					this.gridoneInstance.vPrint.addChild(label);
+				}
+				this.gridoneInstance.bgPrintColor=strBgpageColor;
+				this.print(bfooter,dgHDBgColor,dgHDHeight);
+				this.gridoneInstance.vPrint.removeChild(label);
+			}
+			
+			public function print(bfooter:Boolean,dgHDBgColor:uint,dgHDHeight:Number):void
+			{
+				var printJob:FlexPrintJob = new FlexPrintJob();
+				var num:Number=this.datagrid.dataProvider.length;
+				var nPage:Number=num / 22;
+				var vPheight:Number=((num*22)/nPage) * 2 + dgHDHeight + 50;
+				if (printJob.start())
+				{
+					var printGrid:PrintADG  = new  PrintADG();
+					var footer:Label;
+					printGrid.width =datagrid.totalVisibleColumnWidth;
+					printGrid.includeInLayout = false;
+					
+					printGrid.x=30;
+					printGrid.y=50;
+					printGrid.bgColor[0]=dgHDBgColor;
+					printGrid.bgColor[1]=dgHDBgColor;
+					printGrid.headerHeight=dgHDHeight;
+					
+					
+					printGrid.height = vPheight ;
+					//	printGrid.gpHDColor[0]="0xffffff";
+					
+					printGrid.source=datagrid;
+					this.gridoneInstance.vPrint.visible=true;
+					this.gridoneInstance.vPrint.includeInLayout = false;
+					this.gridoneInstance.vPrint.width=datagrid.totalVisibleColumnWidth + 60;
+					this.gridoneInstance.vPrint.height=vPheight+ 100; 
+					printGrid.visible = true;
+					
+					this.gridoneInstance.vPrint.addChild(printGrid);
+					if (bfooter)
+					{
+						footer= new Label();
+						var formatter:DateFormatter  = new DateFormatter();
+						formatter.formatString = "YYYY/MM/DD";
+						footer.text= formatter.format(new Date());
+						footer.percentWidth=95;
+						footer.setStyle("textAlign","right");
+						footer.y=vPheight + 60; 
+						this.gridoneInstance.vPrint.addChild(footer);
+					}
+					printJob.addObject(this.gridoneInstance.vPrint, FlexPrintJobScaleType.MATCH_WIDTH);
+					while (printGrid.validNextPage)
+					{
+						printGrid.nextPage();
+						printJob.addObject(this.gridoneInstance.vPrint, FlexPrintJobScaleType.MATCH_WIDTH);
+					}
+					printJob.send();
+					
+					this.gridoneInstance.vPrint.removeChild(printGrid);
+				}
+				else
+				{
+					if (bfooter)
+					{
+						this.gridoneInstance.vPrint.removeChild(footer);
+					}
+				}
+			}
+			
+			/*************************************************************
+			 * is row hide
+			 * ***********************************************************/
+			public function isRowHide(nRow:int):Boolean
+			{
+				var item:Object;
+				if(this.datagrid.itemEditorInstance)
+					this.datagrid.destroyItemEditor();
+				if (!this.datagrid.isTree)
+				{
+					item = this.datagrid.getBackupItem(nRow); 
+				}
+				return item[Global.ROW_HIDE];
+			}
+	 
+			/********************************************************************************************
+			 * Register External interface 
+			 * */
+ 
+			public function callRegisterfunction(flex:Object):void
+			{
+				 	 
+					if (ExternalInterface.available)
+					{	
+						ExternalInterface.addCallback("getRowCount", this.getRowCount);
+						ExternalInterface.addCallback("getGridData", this.getGridData);
+						ExternalInterface.addCallback("getColWidth", this.getColWidth);
+						ExternalInterface.addCallback("getColCount", this.getColCount);
+						ExternalInterface.addCallback("getGroupHDText", this.getGroupHDText);
+						ExternalInterface.addCallback("getColHDKey", this.getColHDKey);
+						ExternalInterface.addCallback("getColHDVisibleIndex", this.getColHDVisibleIndex);
+						ExternalInterface.addCallback("getColHDText", this.getColHDText);
+						ExternalInterface.addCallback("getColHDIndex", this.getColHDIndex);
+						
+						ExternalInterface.addCallback("getActiveRowIndex", this.getActiveRowIndex);
+						ExternalInterface.addCallback("getColumnProperty", this.getColumnProperty);
+						ExternalInterface.addCallback("getCellValueIndex", this.getCellValueIndex);
+						ExternalInterface.addCallback("getCellValue", this.getCellValue);
+						ExternalInterface.addCallback("getCellHiddenValueIndex", this.getCellHiddenValueIndex);
+						
+						ExternalInterface.addCallback("getCellImage", this.getCellImage);
+						ExternalInterface.addCallback("getComboListKey", this.getComboListKey);
+						ExternalInterface.addCallback("getComboSelectedListKey", this.getComboSelectedListKey);
+						ExternalInterface.addCallback("getComboListCount", this.getComboListCount);
+						ExternalInterface.addCallback("getComboHiddenValue", this.getComboHiddenValue);
+						ExternalInterface.addCallback("getComboText", this.getComboText);
+						ExternalInterface.addCallback("getComboSelectedIndex", this.getComboSelectedIndex);
+						ExternalInterface.addCallback("getComboSelectedHiddenValue", this.getComboSelectedHiddenValue);
+						ExternalInterface.addCallback("getActiveColKey", this.getActiveColKey);
+						ExternalInterface.addCallback("getImageListURL", this.getImageListURL);
+						ExternalInterface.addCallback("getImageListCount", this.getImageListCount);
+						ExternalInterface.addCallback("getColMaxLength", this.getColMaxLength);
+						ExternalInterface.addCallback("getCheckedRowsIndex",this.getCheckedRowsIndex);
+						
+						ExternalInterface.addCallback("getColumnIndex",this.getColumnIndex);
+						ExternalInterface.addCallback("getColumnType",this.getColumnType);
+						
+						ExternalInterface.addCallback("getCell",this.getCell);
+						ExternalInterface.addCallback("getCellValues",this.getCellValues);
+						ExternalInterface.addCallback("getCellBackgroundColor",this.getCellBackgroundColor);
+						
+						ExternalInterface.addCallback("getComboNameAtColumn",this.getComboNameAtColumn);
+						ExternalInterface.addCallback("getComboNameAtColumnIndex",this.getComboNameAtColumnIndex);
+						
+						ExternalInterface.addCallback("getDeletedRows",this.getDeletedRows);
+						ExternalInterface.addCallback("getInsertedRows",this.getInsertedRows);
+						ExternalInterface.addCallback("getRow",this.getRow);
+						ExternalInterface.addCallback("getUpdatedRows",this.getUpdatedRows);
+						
+						ExternalInterface.addCallback("getCellIndexArray",this.getCellIndexArray);
+						
+						ExternalInterface.addCallback("getColumns",this.getColumns);
+						
+						ExternalInterface.addCallback("getCellActivation", this.getCellActivation);
+						ExternalInterface.addCallback("getTextData", this.getTextData);		
+						
+						ExternalInterface.addCallback("getClientDataString",this.getClientDataString);
+						ExternalInterface.addCallback("getArrayData",this.getArrayData);
+						
+						ExternalInterface.addCallback("getCheckBoxValue",this.getCheckBoxValue);
+						
+						ExternalInterface.addCallback("getCellGroupMergeInfo",this.getCellGroupMergeInfo);
+						
+						ExternalInterface.addCallback("getColCellActivation", this.getColCellActivation);	
+						
+						ExternalInterface.addCallback("getXMLData", this.getXMLData);
+						ExternalInterface.addCallback("printPDF",this.printPDF);
+						
+						////////////////////////////////////////////////
+						ExternalInterface.addCallback("getCellHiddenValue", flex.getCellHiddenValue);
+						ExternalInterface.addCallback("getColumn",flex.getColumn);
+						ExternalInterface.addCallback("getSelectedIndexs",flex.getSelectedIndexs);
+						ExternalInterface.addCallback("getItemAt",flex.getItemAt);
+						ExternalInterface.addCallback("setItemAt",flex.setItemAt);
+						ExternalInterface.addCallback("generateTestData", flex.generateTestData);
+						ExternalInterface.addCallback("getColumnKeys",flex.getColumnKeys);
+						ExternalInterface.addCallback("getDataObject",flex.getDataObject);
+						ExternalInterface.addCallback("getProtocolData",flex.getProtocolData);
+						ExternalInterface.addCallback("getStatus",flex.getStatus);
+						ExternalInterface.addCallback("getParams",flex.getParams);
+						ExternalInterface.addCallback("getParamCount",flex.getParamCount);
+						ExternalInterface.addCallback("getParamKey",flex.getParamKey);
+						ExternalInterface.addCallback("getMessage",flex.getMessage);
+						ExternalInterface.addCallback("getExcelString",flex.getExcelString);
+						ExternalInterface.addCallback("getRowValues",flex.getRowValues);
+						ExternalInterface.addCallback("getSelectedIndex",flex.getSelectedIndex);
+						ExternalInterface.addCallback("getSelectedItem",flex.getSelectedItem);
+						ExternalInterface.addCallback("getCurrentPage",flex.getCurrentPage);
+						ExternalInterface.addCallback("getPageTotal",flex.getPageTotal);
+						ExternalInterface.addCallback("getPagingIndex",flex.getPagingIndex);
+						ExternalInterface.addCallback("getPagingCount",flex.getPagingCount);
+						ExternalInterface.addCallback("getDataGridString",flex.getDataGridString);
+						ExternalInterface.addCallback("getCellFontColor",flex.getCellFontColor);
+						ExternalInterface.addCallback("getAllData",flex.getAllData);
+						ExternalInterface.addCallback("getGridProtocolText",flex.getGridProtocolText);
+						ExternalInterface.addCallback("getDataGridProperty", flex.getDataGridProperty);
+						ExternalInterface.addCallback("getColType", flex.getColType);
+						ExternalInterface.addCallback("getSummaryBarValue", flex.getSummaryBarValue);
+						ExternalInterface.addCallback("getDataObject",flex.getDataObject);
+						ExternalInterface.addCallback("getProtocolData",flex.getProtocolData);
+						ExternalInterface.addCallback("getStatus", flex.getStatus);
+						ExternalInterface.addCallback("getParams", flex.getParams);
+						ExternalInterface.addCallback("getParamCount", flex.getParamCount);
+						ExternalInterface.addCallback("getParamKey", flex.getParamKey);
+						ExternalInterface.addCallback("getMessage", flex.getMessage);
+						ExternalInterface.addCallback("getVersion",flex.getVersion);
+						ExternalInterface.addCallback("getSelectedIndex",flex.getSelectedIndex);
+						ExternalInterface.addCallback("getSelectedItem",flex.getSelectedItem);
+						ExternalInterface.addCallback("getCRUDJsonData",flex.getCRUDJsonData);
+						ExternalInterface.addCallback("getCheckedItems",flex.getCheckedItems);
+						ExternalInterface.addCallback("getDataFieldIndex",flex.getDataFieldIndex);
+ 
+						ExternalInterface.addCallback("getTreeMode", flex.getTreeMode);
+						ExternalInterface.addCallback("getRowIndexFromTreeKey", flex.getRowIndexFromTreeKey);
+						ExternalInterface.addCallback("getTreeChildNodeCount", flex.getTreeChildNodeCount);
+						ExternalInterface.addCallback("getTreeChildNodeKey", flex.getTreeChildNodeKey);
+						ExternalInterface.addCallback("getTreeFirstNodeKey", flex.getTreeFirstNodeKey);
+						ExternalInterface.addCallback("getTreeKeyFromRowIndex", flex.getTreeKeyFromRowIndex);
+						ExternalInterface.addCallback("getTreeNextNodeKey", flex.getTreeNextNodeKey);
+						ExternalInterface.addCallback("getTreeNodeDepth", flex.getTreeNodeDepth);
+						ExternalInterface.addCallback("getTreeParentNodeKey", flex.getTreeParentNodeKey);
+						ExternalInterface.addCallback("getTreePrevNodeKey", flex.getTreePrevNodeKey);
+						ExternalInterface.addCallback("getTreeSummaryValue", flex.getTreeSummaryValue);
+						
+					}		
+			}
+			
+			
+			public function getComboListCount(columnKey:String, listKey:String=Global.DEFAULT_COMBO_KEY):int
+			{
+				try
+				{
+					var result:int = 0;
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;			
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (listKey != null && col.listCombo[listKey] != null)
+					{
+						result = (col.listCombo[listKey] as Array).length;
+					}
+					/* if (col.comboData != null)
+					result = col.comboData.length; */					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboListCount");	
+				}
+				return result;
+			}
+			
+			
+			
+			public function getComboHiddenValue(columnKey:String, comboIndex:int, listKey:String=Global.DEFAULT_COMBO_KEY):String
+			{
+				try
+				{
+					var result:String = "";
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (col.listCombo[listKey] != null)
+					{
+						var arr:Array=col.listCombo[listKey];
+						result =  arr[comboIndex]["value"];
+					}					
+				}
+				catch(error:Error)
+				{
+					err.throwMsgError(error.message,"getComboHiddenValue");	
+				}
+				return result;
+			}
+			
+			public function getComboSelectedHiddenValue(columnKey:String, rowIndex:int, listKey:String=Global.DEFAULT_COMBO_KEY):String
+			{
+				try
+				{
+					var hiddenValue:String;
+					var col:ExAdvancedDataGridColumn=this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+					if (col == null)
+						err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+					if (rowIndex < 0 || rowIndex >= this.datagrid.dataProvider.length)
+						err.throwError(ErrorMessages.ERROR_INDEX_INVALID, Global.DEFAULT_LANG);
+					
+					if (listKey != null)
+					{
+						var valueCombo:String = this.datagrid.getBackupItem(rowIndex)[col.dataField].toString();
+						var flag:Boolean=false;
+						var index:int=0;
+						for each(var item:Object in col.listCombo[listKey])
+						{
+							if(item["value"]==valueCombo)
+							{
+								hiddenValue = valueCombo;
+								flag=true;
+								break;
+							}
+							index++;
+						}
+						if(!flag)
+							err.throwError(ErrorMessages.ERROR_INVALID_INPUT_DATA, Global.DEFAULT_LANG);
+					}
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getComboSelectedHiddenValue");					
+				}
+				return hiddenValue;
+			}
+			
+			/*************************************************************
+			 * The function get data of client grid 
+			 * @param type kind of data which want to get
+			 * 		A: all
+			 * 		If it has CRUD mode, I: Insert ; U:Update; D:Delete
+			 * 		Eg: Type can be "A" ; "A+I"; "I+U+D";...
+			 * @param visibleType the status of row
+			 * 		A: all ( include visible and invisible rows)
+			 * 		I: invisible (include invisible rows)
+			 * 		V: visible (include visible rows)
+			 * @param dataType kind of data which wants to return (text | json)
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getClientDataString(type:String="A",visibleType:String="A",dataType:String="text"):String
+			{
+				try
+				{
+					var resultData:String="";
+					if(type == "" || type == null)
+						return resultData;
+					// type is "A" or contain "A" => get all datas
+					if((type.indexOf("A") >= 0) || (type.indexOf("+") == -1 && type == "A"))
+					{
+						//there is no + inside
+						if(dataType == "text")
+							resultData = getTextDataByCondition(this.datagrid._bkDP,false,"A",visibleType);
+						else if(dataType == "json")
+							resultData = getGridDataByCondition(this.datagrid._bkDP,"getClientDataString",null,"A",visibleType);
+					}
+					else 
+					{
+						//in this case CRUD mode is applied with these types such as "I+U" or "I" or "U" or "D" or "I+U+D" ...
+						if(this.datagrid.crudMode)
+						{
+							if(dataType == "text")
+								resultData = getTextDataByCondition(this.datagrid._bkDP,false,type,visibleType);
+							else if(dataType == "json")
+								resultData = getGridDataByCondition(this.datagrid._bkDP,"getClientDataString",null,type,visibleType);				
+						}
+					}
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,"getClientDataString");				
+				}
+				return resultData;
+			}
+			
+			
+			/*************************************************************
+			 * get text data according to specified condition
+			 * @author Duong Pham
+			 * ***********************************************************/
+			public function getTextDataByCondition(datas:Object, hasColumnDataField:Boolean=false,type:String="A",visibleType:String="A"):String
+			{			
+				var returnVal:String='';
+				//get column data field
+				var cols:Array=this.datagrid.columns;
+				var colStr:String='';
+				
+				for (var i:int=0; i < cols.length; i++)
+				{
+					var col:ExAdvancedDataGridColumn=cols[i] as ExAdvancedDataGridColumn;
+					if (col.type != ColumnType.AUTONUMBER)
+					{
+						if (i != cols.length - 1)
+							colStr=colStr + col.dataField + columnSeparator;
+						else
+							colStr=colStr + col.dataField + rowSeparator;
+					}
+				}
+				
+				//get row data			
+				//var datas:Object=this.datagrid.dataProvider;
+				var dataStr:String='';
+				var obj:Object;
+				var isMapped:Boolean = false;
+				var arrType:Array;
+				
+				if(type == "A")
+					isMapped = true;
+				else
+					arrType = type.split("+");
+				
+				for (var j:int=0; j < datas.length; j++)
+				{
+					if(arrType && arrType.length > 0)
+					{
+						isMapped = false;
+						for(var k:int=0; k<arrType.length; k++)
+						{
+							if(datas[j][this.datagrid.crudColumnKey] == arrType[k])
+							{
+								isMapped = true;
+								break;
+							}
+						}
+					}
+					if(isMapped)
+					{
+						obj=datas[j];
+						//check visible type according to A : all ; V: visible row only; I :invisible row only
+						if((visibleType == "I" && obj[Global.ROW_HIDE] == true) 
+							|| (visibleType == "V" && (obj[Global.ROW_HIDE] == false || !obj.hasOwnProperty(Global.ROW_HIDE)))
+							|| (visibleType == "A"))
+						{
+							for (var jj:int=0; jj < cols.length; jj++)
+							{
+								var dcol:ExAdvancedDataGridColumn=cols[jj] as ExAdvancedDataGridColumn;
+								if (dcol.type != ColumnType.AUTONUMBER)
+								{
+									if (obj[dcol.dataField] == undefined)
+										obj[dcol.dataField]='';
+									if(datagrid.bUpdateNullToZero && dcol.type == ColumnType.NUMBER && 
+										(obj[dcol.dataField] == undefined || obj[dcol.dataField] == null || obj[dcol.dataField] == ""))
+									{
+										obj[dcol.dataField]='0';
+									}
+									//if (dcol.type == ColumnType.CHECKBOX || dcol.type == ColumnType.RADIOBUTTON)
+									//obj[dcol.dataField]='N';
+									
+									if (jj != cols.length - 1)
+										dataStr=dataStr + obj[dcol.dataField] + columnSeparator;
+									else
+										dataStr=dataStr + obj[dcol.dataField] + rowSeparator;
+								}
+								else
+								{
+									dataStr=dataStr + "" + columnSeparator;
+								}
+							}
+						}
+					}
+				}
+				if (hasColumnDataField)
+					returnVal=colStr + dataStr;
+				else
+					returnVal=dataStr;
+				
+				if(returnVal != "")
+					returnVal = returnVal.substr(0,returnVal.length-2);
+				
+				return returnVal;
+				
+			}
+			
+			
+			/*************************************************************
+			 * get json data according to a specified condition
+			 * @author Duong Pham
+			 * ***********************************************************/		
+			public function getGridDataByCondition(datas:Object , functionName:String, columnKey:String=null,type:String="A",visibleType:String="A"):String
+			{
+				try
+				{
+					var rowObj:Object;
+					if (datas == null)
+						return '[]';
+					var arrayData:Array=new Array();
+					var item:Object;
+					var k:int=0;
+					var column:ExAdvancedDataGridColumn;
+					var isMapped:Boolean = false;
+					var arrType:Array;
+					if(type == "A")
+						isMapped = true;
+					else
+						arrType = type.split("+");
+					if (columnKey == null)
+					{
+						for each (item in datas)
+						{
+							if(arrType && arrType.length > 0)
+							{
+								isMapped = false;
+								for(k=0; k<arrType.length; k++)
+								{
+									if(item[this.datagrid.crudColumnKey] == arrType[k])
+									{
+										isMapped = true;
+										break;
+									}
+								}
+							}
+							if(isMapped)
+							{
+								rowObj=new Object();
+								//check visible type according to A : all ; V: visible row only; I :invisible row only
+								if((visibleType == "I" && item[Global.ROW_HIDE] == true) 
+									|| (visibleType == "V" && (item[Global.ROW_HIDE] == false || !item.hasOwnProperty(Global.ROW_HIDE)))
+									|| (visibleType == "A"))
+								{
+									for each (column in this.datagrid.columns)
+									{
+										if(datagrid.bUpdateNullToZero && column.type == ColumnType.NUMBER && 
+											(item[column.dataField] == undefined || item[column.dataField] == null || item[column.dataField] == ""))
+											rowObj[column.dataField]=item[column.dataField]="0";
+										rowObj[column.dataField]=item[column.dataField];
+									}
+									arrayData.push(rowObj);
+								}
+							}
+						}
+					}
+					else
+					{
+						var col:ExAdvancedDataGridColumn = this.gridoneInstance.getColumnByDataField(columnKey) as ExAdvancedDataGridColumn;
+						if (col == null)
+							err.throwError(ErrorMessages.ERROR_COLKEY_INVALID, Global.DEFAULT_LANG);
+						if (col.type != ColumnType.CHECKBOX)
+							err.throwError(ErrorMessages.ERROR_CHECKBOX_COLUMN_TYPE, Global.DEFAULT_LANG);
+						for each (item in datas)
+						{
+							if (item[columnKey] == "1")
+							{
+								if(arrType && arrType.length > 0)
+								{
+									isMapped = false;
+									for(k=0; k<arrType.length; k++)
+									{
+										if(item[this.datagrid.crudColumnKey] == arrType[k])
+										{
+											isMapped = true;
+											break;
+										}
+									}
+								}
+								if(isMapped)
+								{
+									rowObj=new Object();
+									//check visible type according to A : all ; V: visible row only; I :invisible row only
+									if((visibleType == "I" && item[Global.ROW_HIDE] == true) 
+										|| (visibleType == "V" && (item[Global.ROW_HIDE] == false || !item.hasOwnProperty(Global.ROW_HIDE)))
+										|| (visibleType == "A"))
+									{
+										for each (column in this.datagrid.columns)
+										{
+											if(datagrid.bUpdateNullToZero && column.type == ColumnType.NUMBER && 
+												(item[column.dataField] == undefined || item[column.dataField] == null || item[column.dataField] == ""))
+												rowObj[column.dataField]=item[column.dataField]="0";
+											rowObj[column.dataField]=item[column.dataField];
+										}
+										arrayData.push(rowObj);
+									}
+								}
+							}
+						}
+					}
+					var newResult:String = "";
+					if(arrayData.length > 0)
+					{
+						var result:String = encodeJson(arrayData);
+						newResult = result.replace(/\\/g, "\\\\");
+					}
+				}
+				catch (error:Error)
+				{
+					err.throwMsgError(error.message,functionName);				
+				}			
+				return newResult;
+			}
+			
+			
+			/*************************************************************
+			 * search data
+			 * ***********************************************************/				
+			public function searchData(searchStr:String,isDown:String="",columnKey:String=""):void
+			{
+				var rs:Object;
+				var stop:Boolean=false;
+				var index:int=0;
+				var item:Object;
+				var insertIndex:int=0;
+				var col:ExAdvancedDataGridColumn;
+				var firstItem:Object;
+				
+				var itemName:String="";
+				
+				if(searchStr == "")
+					return;
+				
+				if(isDown=="")
+				{
+					while (index < this.datagrid.dataProvider.length)					
+					{
+						if(columnKey != "" && columnKey != null)
+						{
+							itemName=this.datagrid.dataProvider[index][columnKey].toString().toLowerCase();
+							if(itemName.toLocaleLowerCase().indexOf(searchStr.toLowerCase()) > -1)
+							{
+								item=(this.datagrid.dataProvider as ArrayCollection).getItemAt(index);
+								if(firstItem==null)
+									firstItem=item;
+								(this.datagrid.dataProvider as ArrayCollection).removeItemAt(index);
+								(this.datagrid.dataProvider as ArrayCollection).addItemAt(item,insertIndex);
+								insertIndex++;
+							}
+						}
+						else
+						{
+							for each ( col in this.datagrid.columns)
+							{
+								itemName=this.datagrid.dataProvider[index][col.dataField].toString().toLowerCase();
+								if(itemName.toLocaleLowerCase().indexOf(searchStr.toLowerCase()) > -1)
+								{
+									item=this.datagrid.getItemAt(index);
+									if(firstItem==null)
+										firstItem=item;
+									(this.datagrid.dataProvider as ArrayCollection).removeItemAt(index);
+									(this.datagrid.dataProvider as ArrayCollection).addItemAt(item,insertIndex);
+									
+									insertIndex++;
+									break;
+								}						
+							}
+						}
+						index++;
+					}			
+					if(insertIndex>0)
+					{
+						(this.datagrid.dataProvider as ArrayCollection).refresh();
+						this.datagrid.verticalScrollPosition=0;
+						this.datagrid.selectedItem=firstItem;
+					}
+					else
+					{
+						this.datagrid.verticalScrollPosition=0;
+						this.datagrid.selectedItem = null;
+					}
+				}
+				else
+				{
+					//					var direction:String=isDown=="true"?"down":"up"
+					if (isDown=="true")
+					{
+						index=datagrid.selectedIndex;
+						index++;
+						if (index >= this.datagrid.dataProvider.length)
+							index=0;
+					}
+					else
+					{
+						index=datagrid.selectedIndex;
+						index--;
+						if (index <0)
+							index=this.datagrid.dataProvider.length - 1;
+					}
+					
+					while (index < this.datagrid.dataProvider.length)
+					{
+						if(columnKey != "" && columnKey != null)
+						{
+							itemName=this.datagrid.dataProvider[index][columnKey].toString().toLowerCase();
+							if(itemName.toLocaleLowerCase().indexOf(searchStr.toLowerCase()) > -1)
+							{
+								stop=true;
+							}
+						}
+						else
+						{
+							for each ( col in this.datagrid.columns)
+							{
+								itemName=this.datagrid.dataProvider[index][col.dataField].toString().toLowerCase();
+								if(itemName.toLocaleLowerCase().indexOf(searchStr.toLowerCase()) > -1)
+								{
+									stop=true;
+									break;
+								}
+							}
+						}
+						if (stop)
+							break;
+						index++;
+					}
+					
+					if (stop)
+					{				
+						this.datagrid.selectedIndex=index;
+						if(this.datagrid.dataProvider.length>this.datagrid.rowCount)
+						{					
+							this.datagrid.maxVerticalScrollPosition=this.datagrid.dataProvider.length-this.datagrid.rowCount+1;	
+						}
+						if (index > this.datagrid.rowCount - 2)
+						{
+							this.datagrid.verticalScrollPosition=(index - this.datagrid.rowCount + 3) >=this.datagrid.maxVerticalScrollPosition?this.datagrid.maxVerticalScrollPosition:(index - this.datagrid.rowCount + 3) ;					
+						}
+						else
+							this.datagrid.verticalScrollPosition=0;
+					}
+				}		
+			}
+
+			
+		]]>
+	</fx:Script>
+</s:Module>

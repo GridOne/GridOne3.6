@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ACTSONE COMPANY
+//  Copyright 2013 Actsone 
+//  All Rights Reserved.
+//
+//	This program is free software: you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation, either version 3 of the License, or
+//	(at your option) any later version.
+//
+//	This program is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//
+//	You should have received a copy of the GNU General Public License
+//	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+////////////////////////////////////////////////////////////////////////////////
+-->
+<s:Module xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="0" height="0" implements=" actsone.external.IInitFunctions">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import kr.co.actsone.common.ColumnType;
+			import kr.co.actsone.common.Global;
+			import kr.co.actsone.controls.ExAdvancedDataGrid;
+			import kr.co.actsone.controls.advancedDataGridClasses.ExAdvancedDataGridColumn;
+			import kr.co.actsone.controls.advancedDataGridClasses.ExAdvancedDataGridGroupItemRenderer;
+			import kr.co.actsone.editor.ComboEditor;
+			import kr.co.actsone.editor.DateFieldEditor;
+			import kr.co.actsone.editor.ImageTextEditor;
+			import kr.co.actsone.editor.ImageTextRightEditor;
+			import kr.co.actsone.editor.NumberEditor;
+			import kr.co.actsone.editor.TextAreaEditor;
+			import kr.co.actsone.itemRenderers.ButtonRenderer;
+			import kr.co.actsone.itemRenderers.CalendarRenderer;
+			import kr.co.actsone.itemRenderers.CheckBoxRenderer;
+			import kr.co.actsone.itemRenderers.ComboDynamicRenderer;
+			import kr.co.actsone.itemRenderers.ComboHeaderRenderer;
+			import kr.co.actsone.itemRenderers.ComboRendrerer;
+			import kr.co.actsone.itemRenderers.HeaderCheckBoxRenderer;
+			import kr.co.actsone.itemRenderers.HideImageTextRightRenderer;
+			import kr.co.actsone.itemRenderers.HtmlRenderer;
+			import kr.co.actsone.itemRenderers.ImageRenderer;
+			import kr.co.actsone.itemRenderers.ImageTextRenderer;
+			import kr.co.actsone.itemRenderers.ImageTextRightRenderer;
+			import kr.co.actsone.itemRenderers.LabelItemRenderer;
+			import kr.co.actsone.itemRenderers.LinkButtonRenderer;
+			import kr.co.actsone.itemRenderers.MultiComboRenderer;
+			import kr.co.actsone.itemRenderers.NumberItemRenderer;
+			import kr.co.actsone.itemRenderers.RadioButtonRenderer;
+			import kr.co.actsone.itemRenderers.TextAreaRenderer;
+			import kr.co.actsone.itemRenderers.TotalColumnRenderer;
+	  
+	 
+			private var _gridoneInstance:Object;
+			public var _datagrid:ExAdvancedDataGrid;
+			private var _labelFunc:Object;
+ 
+			public function get gridoneInstance():Object
+			{
+				return _gridoneInstance;
+			}
+			
+			public function setLabelFunct(obj:Object):void
+			{
+				_labelFunc=obj;
+			}
+			
+			public function get labelFuncLib():Object
+			{
+				return _labelFunc;
+			}
+			
+			public function gridoneIn(value:Object):void
+			{
+				_gridoneInstance = value;
+			}
+			
+			public function get datagrid():ExAdvancedDataGrid
+			{
+				return  _datagrid;
+			}
+			
+			public function setDataGrid(obj:Object):void
+			{
+				_datagrid=obj as ExAdvancedDataGrid;
+			}
+			
+			public function getModuleName():String
+			{
+				var str:String="IInitialFunction"  + gridoneInstance.toString();
+				return str;
+			}
+			
+			/*************************************************************
+			 * set item renderer for a column.
+			 * @param col column need to be updated item renderer
+			 * @param value type of column
+			 * @param isHeaderRenderer provide information that item renderer is used in header
+			 * ***********************************************************/
+ 
+			public function registerItemRenderer(col:ExAdvancedDataGridColumn, value:String , isHeaderRenderer:Boolean = false):void
+			{
+				var itemRendererCls:ClassFactory;
+				var itemEditorCls:ClassFactory;
+				var editDataField:String="";
+				
+				if (!col is ExAdvancedDataGridColumn)
+					return;
+				if(isHeaderRenderer)
+				{
+					if (value == ColumnType.CHECKBOX)
+					{
+						itemRendererCls= new ClassFactory(HeaderCheckBoxRenderer);
+						col.sortable=false;
+						col.isCheckBoxHeaderRenderer=true;
+					}
+					if (value ==ColumnType.COMBOHEADER)
+					{
+						itemRendererCls= new ClassFactory(ComboHeaderRenderer);
+						(col as ExAdvancedDataGridColumn).sortable=false;
+					}
+					if (value ==ColumnType.HTMLHEADER)
+					{
+						itemRendererCls= new ClassFactory(HeaderCheckBoxRenderer);
+					}
+					
+					(col as ExAdvancedDataGridColumn).headerRenderer=itemRendererCls;
+				}
+				else
+				{
+					if (value == ColumnType.NUMBER)
+					{
+						
+						if(!datagrid.performanceMode)
+						{
+							itemRendererCls=new ClassFactory(NumberItemRenderer);
+						}
+						(col as ExAdvancedDataGridColumn).labelFunction = labelFuncLib.renderLabelFuncOfNumberColumn;
+						itemEditorCls=new ClassFactory(NumberEditor);
+						editDataField="myNumberString";
+						(col as ExAdvancedDataGridColumn).public::setStyle("textAlign", "right");
+						(col as ExAdvancedDataGridColumn).editorRestrict="0-9.,";
+					}
+					else if (value == ColumnType.AUTONUMBER)
+					{
+						if(!datagrid.performanceMode)
+						{
+							itemRendererCls=new ClassFactory(LabelItemRenderer);
+						}
+						(col as ExAdvancedDataGridColumn).labelFunction=labelFuncLib.autoSeqLabelFunc;
+						(col as ExAdvancedDataGridColumn).editable=false;
+						(col as ExAdvancedDataGridColumn).cellActivation=Global.ACTIVATE_ONLY;
+					}
+					else if (value==ColumnType.TEXT  || value == ColumnType.TIME)
+					{
+						if (this.datagrid.variableRowHeight==false)
+						{
+							
+							if(!datagrid.performanceMode)
+							{
+								
+								itemRendererCls = new ClassFactory(LabelItemRenderer);
+								
+							}	
+							else
+								(col as ExAdvancedDataGridColumn).labelFunction=labelFuncLib.renderLabelFuncOfTextColumn;
+						}
+						else
+						{
+							// support automatically row height change based on input content
+							(col as ExAdvancedDataGridColumn).wordWrap = true; 
+							
+						}
+					}
+						
+					else if (value == ColumnType.CHECKBOX)
+					{
+						itemRendererCls=new ClassFactory(CheckBoxRenderer);
+						(col as ExAdvancedDataGridColumn).showEditor = false;						
+						(col as ExAdvancedDataGridColumn).public::setStyle("textAlign", "center");
+					}
+					else if (value == ColumnType.COMBOBOX)
+					{
+						itemRendererCls=new ClassFactory(ComboRendrerer);
+						itemEditorCls=new ClassFactory(ComboEditor);
+						editDataField="myComboString";
+					}
+					else if (value == ColumnType.DATE)
+					{
+						itemRendererCls=new ClassFactory(CalendarRenderer);
+						itemEditorCls=new ClassFactory(DateFieldEditor);
+						editDataField="myDateFieldString";
+						
+					}
+					else if (value == ColumnType.IMAGE)
+					{
+						itemRendererCls=new ClassFactory(ImageRenderer);
+						(col as ExAdvancedDataGridColumn).showEditor=false;	
+					}
+					else if (value == ColumnType.CRUD)
+					{
+						this.datagrid.crudMode=true;
+						this.datagrid.strInsertRowText=Global.CRUD_INSERT;
+						this.datagrid.strUpdateRowText=Global.CRUD_UPDATE;
+						this.datagrid.strDeleteRowText=Global.CRUD_DELETE;
+						this.datagrid.crudColumnKey=col.dataField;
+						(col as ExAdvancedDataGridColumn).public::setStyle("textAlign", "center");
+						(col as ExAdvancedDataGridColumn).editable=false;
+						(col as ExAdvancedDataGridColumn).cellActivation=Global.ACTIVATE_ONLY;
+						
+					}
+					else if (value == ColumnType.BUTTON)
+					{
+						itemRendererCls=new ClassFactory(ButtonRenderer);
+						col.cellActivation=Global.ACTIVATE_ONLY;
+						(col as ExAdvancedDataGridColumn).showEditor = false;
+					}
+					else if (value == ColumnType.TREE)
+					{
+						itemRendererCls=new ClassFactory(ExAdvancedDataGridGroupItemRenderer);
+						(col as ExAdvancedDataGridColumn).public::setStyle("textAlign", "left");
+					}
+					else if (value == ColumnType.COMBODYNAMIC)
+					{
+						itemRendererCls=new ClassFactory(ComboDynamicRenderer);
+						itemEditorCls=new ClassFactory(ComboEditor);
+						editDataField="myComboString";
+					}
+					else if (value == ColumnType.MULTICOMBO)
+					{
+						itemRendererCls=new ClassFactory(ComboRendrerer);
+						itemEditorCls=new ClassFactory(ComboEditor);
+						editDataField="myComboString";
+					}
+						
+					else if (value == ColumnType.TEXTAREA)
+					{
+						itemRendererCls=new ClassFactory(TextAreaRenderer);
+						itemEditorCls=new ClassFactory(TextAreaEditor);
+						
+						editDataField="textAreaValue";
+						this.datagrid.variableRowHeight=true;
+						(col as ExAdvancedDataGridColumn).wordWrap = true; 
+						
+					}
+					else if (value == ColumnType.IMAGETEXT)
+					{
+						itemRendererCls=new ClassFactory(ImageTextRenderer);
+						itemEditorCls=new ClassFactory(ImageTextEditor);
+						editDataField="imageTextValue";
+						(col as ExAdvancedDataGridColumn).public::setStyle("color", "#0404B4");
+					}
+					else if (value == ColumnType.IMAGETEXTRIGHT)
+					{
+						
+						itemRendererCls=new ClassFactory(ImageTextRightRenderer);
+						itemEditorCls=new ClassFactory(ImageTextRightEditor);
+						(col as ExAdvancedDataGridColumn).editorDataField="imageTextValue";
+						(col as ExAdvancedDataGridColumn).public::setStyle("color", "#0404B4");
+					}
+					else if (value == ColumnType.HIDEIMAGETEXTRIGHT)
+					{
+						
+						itemRendererCls=new ClassFactory(HideImageTextRightRenderer);
+						itemEditorCls=new ClassFactory(ImageTextRightEditor);
+						editDataField="imageTextValue";
+						(col as ExAdvancedDataGridColumn).public::setStyle("color", "#0404B4");
+					}
+						
+					else if (value == ColumnType.TOTAL)
+					{
+						itemRendererCls=new ClassFactory(TotalColumnRenderer);
+						(col as ExAdvancedDataGridColumn).labelFunction = labelFuncLib.renderLabelFuncOfTotalColumn;
+						(col as ExAdvancedDataGridColumn).public::setStyle("textAlign", "right");
+						(col as ExAdvancedDataGridColumn).editable=false;
+						(col as ExAdvancedDataGridColumn).cellActivation=Global.ACTIVATE_ONLY;
+						
+					}
+					else if (value == ColumnType.HTML)
+					{
+						itemRendererCls=new ClassFactory(HtmlRenderer);
+						(col as ExAdvancedDataGridColumn).showEditor=false;
+					}
+					else if (value == ColumnType.LINK)
+					{
+						itemRendererCls=new ClassFactory(LinkButtonRenderer);
+						col.showEditor=false;
+					}
+					else
+					{
+						
+					}
+					
+					(col as ExAdvancedDataGridColumn).itemRenderer= itemRendererCls;
+					if (itemEditorCls !=null)
+						(col as ExAdvancedDataGridColumn).itemEditor=itemEditorCls;
+					if (editDataField !="")
+						(col as ExAdvancedDataGridColumn).editorDataField=editDataField;
+				}
+				
+			}
+		]]>
+	</fx:Script>
+</s:Module>
