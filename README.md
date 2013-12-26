@@ -11,7 +11,7 @@ GridOne3.6 is the web flex application with developed in flash builder 4.6 versi
 ==> unzip the package to the workspace of flash build 4.6
 
 =====================================================================================================================
-==> go to flash builder interface and import project which browse to this GridOne3.5 package.
+==> go to flash builder interface and import project which browse to this GridOne3.6 package.
 
 =====================================================================================================================
 ==> try to run GridOne.mxml
