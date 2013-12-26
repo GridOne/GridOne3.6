@@ -204,7 +204,7 @@
 				if(Global.BUILD_VERSION == Global.RELEASE_VERSION)
 					setTimeout(saveURLInfo,500);
 				
-				initMod.loadModule("http://demo.actsone.co.kr/gridone3apishowcase/lib/InitModule.swf");
+				initMod.loadModule("InitModule.swf");
 			}
  
 			/*************************************************************
@@ -3293,7 +3293,7 @@
 			{ 
 				 if (bLoadFirst)
 				 {
-					 mod.loadModule("http://demo.actsone.co.kr/gridone3apishowcase/lib/ExModuleFunction.swf");
+					 mod.loadModule("ExModuleFunction.swf");
 					 bLoadFirst=false;
 				 }
 				 this.gridoneManager.collectionChange_handler(event);
